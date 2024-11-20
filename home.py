@@ -1,6 +1,8 @@
 import streamlit as st
 import requests
 
+st.set_page_config(layout="wide")
+
 #set tittle page
 st.title("Stock Predictor App")
 
