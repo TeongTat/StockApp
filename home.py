@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 
 #set tittle page
-st.tittle("Stock Predictor App")
+st.title("Stock Predictor App")
 
 st.write("""
 This is a stock price and prediction modelling app that will assist investors on buying or selling the stocks. The stocks are based on all companies listed on S&P 500 and the price are up to date linking from Yahoo Finance server.
