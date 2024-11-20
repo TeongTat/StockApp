@@ -13,10 +13,6 @@ import pandas as pd
 # Title for the app
 st.title("S&P 500 Stock Information and Prediction")
 
-# Sidebar for navigation - acts as a tab selector
-st.sidebar.title("Navigation")
-selected_option = st.sidebar.radio("Go to:", ["Stock Information", "Stock Prediction"])
-
 # Load S&P 500 tickers and company names
 @st.cache_data  # Cache the data to avoid reloading on every interaction
 def load_sp500_tickers_names():
