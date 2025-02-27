@@ -5,14 +5,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 from statsmodels.tsa.arima.model import ARIMA
 
-# List of S&P 500 stocks
-sp500_stocks = {
-    "Apple (AAPL)": "AAPL",
-    "Microsoft (MSFT)": "MSFT",
-    "Google (GOOGL)": "GOOGL",
-    "Amazon (AMZN)": "AMZN",
-    "Tesla (TSLA)": "TSLA"
-}
+# Fetch full S&P 500 stock list
+@st.cache
+def get_sp500_stocks():
+    url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
+    sp500_table = pd.read_html(url)[0]
+    return dict(zip(sp500_table['Security'], sp500_table['Symbol']))
+
+sp500_stocks = get_sp500_stocks()
 
 # Streamlit UI
 st.title("S&P 500 Stock Price Prediction using ARIMA")
@@ -38,41 +38,39 @@ if st.button("Predict"):
         st.write("Last 5 rows of historical data:")
         st.write(stock_data.tail())
 
-        # Train ARIMA model for Close, High, and Low prices
-        def train_arima(series):
-            model = ARIMA(series, order=(5, 1, 0))
-            return model.fit()
-        
-        close_model = train_arima(stock_data['Close'].dropna())
-        high_model = train_arima(stock_data['High'].dropna())
-        low_model = train_arima(stock_data['Low'].dropna())
+        # Use 'Close' price for forecasting
+        stock_prices = stock_data['Close'].dropna()
+
+        # Train ARIMA model (p=5, d=1, q=0)
+        model = ARIMA(stock_prices, order=(5, 1, 0))
+        model_fit = model.fit()
 
         # Forecast next 5 days
-        forecast_days = 5
-        close_forecast = close_model.forecast(steps=forecast_days)
-        high_forecast = high_model.forecast(steps=forecast_days)
-        low_forecast = low_model.forecast(steps=forecast_days)
+        forecast = model_fit.forecast(steps=5)
 
-        # Prepare DataFrame
-        future_dates = pd.date_range(stock_data.index[-1], periods=forecast_days+1)[1:]
+        # Forecast high and low prices using a simple variation
+        high_forecast = forecast * 1.02  # Assume high price is 2% higher
+        low_forecast = forecast * 0.98   # Assume low price is 2% lower
+
+        # Display predictions
+        future_dates = pd.date_range(stock_prices.index[-1], periods=6)[1:]  # Exclude last known date
         forecast_df = pd.DataFrame({
-            'Date': future_dates,
-            'Predicted Close': close_forecast,
-            'Predicted High': high_forecast,
-            'Predicted Low': low_forecast
+            'Date': future_dates, 
+            'Predicted Close Price': forecast,
+            'Predicted High Price': high_forecast,
+            'Predicted Low Price': low_forecast
         })
         forecast_df.set_index("Date", inplace=True)
-        
-        # Display predictions
+
         st.subheader("Predicted Prices for Next 5 Days")
         st.write(forecast_df)
 
         # Plot results
         fig, ax = plt.subplots(figsize=(10, 5))
-        stock_data['Close'][-50:].plot(ax=ax, label="Historical Close Prices", color="blue")
-        forecast_df['Predicted Close'].plot(ax=ax, label="Forecast Close", linestyle="dashed", color="red")
-        forecast_df['Predicted High'].plot(ax=ax, label="Forecast High", linestyle="dotted", color="green")
-        forecast_df['Predicted Low'].plot(ax=ax, label="Forecast Low", linestyle="dotted", color="orange")
+        stock_prices[-50:].plot(ax=ax, label="Historical Prices", color="blue")
+        forecast_df["Predicted Close Price"].plot(ax=ax, label="Forecast Close", linestyle="dashed", color="red")
+        forecast_df["Predicted High Price"].plot(ax=ax, label="Forecast High", linestyle="dotted", color="green")
+        forecast_df["Predicted Low Price"].plot(ax=ax, label="Forecast Low", linestyle="dotted", color="purple")
         ax.set_title(f"Stock Price Prediction for {stock_symbol}")
         ax.set_xlabel("Date")
         ax.set_ylabel("Price")
