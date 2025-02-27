@@ -5,14 +5,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from statsmodels.tsa.arima.model import ARIMA
 
-# Fetch full S&P 500 stock list
-@st.cache
-def get_sp500_stocks():
+# Load full S&P 500 stock list
+def load_sp500_stocks():
     url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
-    sp500_table = pd.read_html(url)[0]
-    return dict(zip(sp500_table['Security'], sp500_table['Symbol']))
+    table = pd.read_html(url)[0]
+    return dict(zip(table['Security'], table['Symbol']))
 
-sp500_stocks = get_sp500_stocks()
+sp500_stocks = load_sp500_stocks()
 
 # Streamlit UI
 st.title("S&P 500 Stock Price Prediction using ARIMA")
@@ -25,12 +24,16 @@ stock_symbol = sp500_stocks[stock_name]
 start_date = st.date_input("Select start date for historical data", pd.to_datetime("2023-01-01"))
 end_date = st.date_input("Select end date", pd.to_datetime("today"))
 
+@st.cache_data
+def fetch_stock_data(symbol, start, end):
+    return yf.download(symbol, start=start, end=end)
+
 # Button to fetch and predict
 if st.button("Predict"):
     st.subheader(f"Fetching Data for {stock_symbol}...")
     
     # Fetch stock data
-    stock_data = yf.download(stock_symbol, start=start_date, end=end_date)
+    stock_data = fetch_stock_data(stock_symbol, start_date, end_date)
     
     if stock_data.empty:
         st.error("No data found! Try selecting a different date range.")
@@ -38,27 +41,29 @@ if st.button("Predict"):
         st.write("Last 5 rows of historical data:")
         st.write(stock_data.tail())
 
-        # Use 'Close' price for forecasting
-        stock_prices = stock_data['Close'].dropna()
+        # Use 'Close', 'High', and 'Low' prices for forecasting
+        stock_prices = stock_data[['Close', 'High', 'Low']].dropna()
 
-        # Train ARIMA model (p=5, d=1, q=0)
-        model = ARIMA(stock_prices, order=(5, 1, 0))
-        model_fit = model.fit()
+        def train_arima(series):
+            model = ARIMA(series, order=(5, 1, 0))
+            return model.fit()
+
+        model_close = train_arima(stock_prices['Close'])
+        model_high = train_arima(stock_prices['High'])
+        model_low = train_arima(stock_prices['Low'])
 
         # Forecast next 5 days
-        forecast = model_fit.forecast(steps=5)
-
-        # Forecast high and low prices using a simple variation
-        high_forecast = forecast * 1.02  # Assume high price is 2% higher
-        low_forecast = forecast * 0.98   # Assume low price is 2% lower
+        forecast_close = model_close.forecast(steps=5)
+        forecast_high = model_high.forecast(steps=5)
+        forecast_low = model_low.forecast(steps=5)
 
         # Display predictions
-        future_dates = pd.date_range(stock_prices.index[-1], periods=6)[1:]  # Exclude last known date
+        future_dates = pd.date_range(stock_prices.index[-1], periods=6)[1:]
         forecast_df = pd.DataFrame({
             'Date': future_dates, 
-            'Predicted Close Price': forecast,
-            'Predicted High Price': high_forecast,
-            'Predicted Low Price': low_forecast
+            'Predicted Close Price': forecast_close,
+            'Predicted High Price': forecast_high,
+            'Predicted Low Price': forecast_low
         })
         forecast_df.set_index("Date", inplace=True)
 
@@ -67,10 +72,10 @@ if st.button("Predict"):
 
         # Plot results
         fig, ax = plt.subplots(figsize=(10, 5))
-        stock_prices[-50:].plot(ax=ax, label="Historical Prices", color="blue")
+        stock_prices['Close'][-50:].plot(ax=ax, label="Historical Close Prices", color="blue")
         forecast_df["Predicted Close Price"].plot(ax=ax, label="Forecast Close", linestyle="dashed", color="red")
-        forecast_df["Predicted High Price"].plot(ax=ax, label="Forecast High", linestyle="dotted", color="green")
-        forecast_df["Predicted Low Price"].plot(ax=ax, label="Forecast Low", linestyle="dotted", color="purple")
+        forecast_df["Predicted High Price"].plot(ax=ax, label="Forecast High", linestyle="dashed", color="green")
+        forecast_df["Predicted Low Price"].plot(ax=ax, label="Forecast Low", linestyle="dashed", color="orange")
         ax.set_title(f"Stock Price Prediction for {stock_symbol}")
         ax.set_xlabel("Date")
         ax.set_ylabel("Price")
