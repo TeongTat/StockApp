@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from statsmodels.tsa.arima.model import ARIMA
 
 # Fetch full S&P 500 stock list
-@st.cache_resource
+@st.cache_data
 def get_sp500_stocks():
     url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
     sp500_table = pd.read_html(url)[0]
